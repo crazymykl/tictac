@@ -1,9 +1,23 @@
 #! /bin/env python
 # -*- coding: utf-8 -*-
 
+import pickle
 from random import random, choice
 from tictacboard import Board, play_game
 from tictacstategen import statemap
+from time import time, localtime
+
+def humanize_dt(start, end):
+    delta = end - start
+    days , delta = divmod(delta, 24 * 60 * 60)
+    hours, delta = divmod(delta, 60 * 60)
+    mins , secs  = divmod(delta, 60)
+    ret=''
+    if days : ret += "%id "%days
+    if hours: ret += "%ih "%hours
+    if mins : ret += "%im "%mins
+    if secs : ret += "%.2fs"%secs
+    return ret
 
 class Critter(object):
 
@@ -30,8 +44,14 @@ class Critter(object):
 
     def reproduce(self, partner):
         baby_chrome = [None]*len(statemap)
+        if self.score >= partner.score:
+            dominant  = self.chromosome
+            recessive = partner.chromosome
+        else:
+            dominant  = partner.chromosome
+            recessive = self.chromosome
         for i in range(len(statemap)):
-            baby_chrome[i] = choice((self.chromosome[i],partner.chromosome[i]))
+            baby_chrome[i] = dominant[i] if random() > .3 else recessive[i]
         return Critter(baby_chrome)
 
     def get_move(self, brd):
@@ -39,28 +59,57 @@ class Critter(object):
 
 class Population(object):
 
-    def __init__(self, size=1000 ,gens=100, survival=.15, mutation=.02, win_val=2, loss_val=5):
+    def __init__(self, size=1000 ,gens=100, survival=.15,
+                        mutation=.02, win_val=2, loss_val=5):
         self.size = size
         self.survival = survival
         self.mutation = mutation
         self.win_val  = win_val
         self.loss_val = loss_val
-        print "Seeding population of size", size
-        self.critters = [Critter() for i in xrange(size)]
-        self.select()
+        self.generation = 0
+
+        try:
+            with open('population%s.dat'%self.size,'rb') as f:
+                pop = pickle.load(f)
+                if pop.size == self.size and pop.survival == self.survival and \
+                    pop.loss_val == self.loss_val and pop.win_val == self.win_val \
+                    and pop.mutation == self.mutation:
+                        self.critters = pop.critters
+                        self.generation = pop.generation
+        except IOError: pass
+
+        if self.generation == 0:
+            print "Seeding population of size", size
+            self.critters = [Critter() for i in xrange(size)]
+            self.select()
         self.evolve(gens)
-        print ''.join(self.critters[0].chromosome)
 
     def evolve(self, gens):
-        for i in xrange(gens):
-            print "Propogating gen %s of %s"%(i+1, gens)
+        while self.generation < gens:
+            print "Propogating gen %s of %s"%(self.generation + 1, gens)
+            start = time()
             self.propogate()
             self.select()
+            self.generation += 1
+            t=localtime()
+            print "[%s:%s:%s] gen %s took %s"% \
+                (t.tm_hour, t.tm_min, t.tm_sec, self.generation, \
+                humanize_dt(start, time()))
+            print "Saving to disk..."
+            try:
+                with open('population%s.dat'%self.size,'wb') as f:
+                    pickle.dump(self,f)
+            except KeyboardInterrupt as e:
+                print "Completing save before exitting..."
+                with open('population%s.dat'%self.size,'wb') as f:
+                    pickle.dump(self,f)
+                print "Saved!"
+                raise KeyboardInterrupt(e)
         print "Evolution Complete!"
 
     def select(self):
         print "Determing fitnesses..."
-        for x in self.critters:
+        for i, x in enumerate(self.critters):
             for o in self.critters:
                 winner = play_game(x, o, False)
                 if winner == Board.X:
@@ -69,6 +118,7 @@ class Population(object):
                 elif winner == Board.O:
                     o.score += self.win_val
                     x.score -= self.loss_val
+            print "evaluated %i of %i"%(i+1, self.size)
         self.critters.sort(key=lambda x: x.score, reverse=True)
 
     def propogate(self):
