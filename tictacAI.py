@@ -1,7 +1,7 @@
 #! /bin/env python
 # -*- coding: utf-8 -*-
 
-import pickle, multiprocessing
+import multiprocessing, zlib
 from random import random, choice
 from itertools import izip, count
 from tictacboard import Board, play_game
@@ -77,15 +77,12 @@ class Population(object):
 
         try:
             with open('population%s.dat'%self.size,'rb') as f:
-                pop = pickle.load(f)
-                if pop.size == self.size and pop.survival == self.survival and \
-                    pop.loss_val == self.loss_val and pop.win_val == self.win_val \
-                    and pop.mutation == self.mutation:
-                        self.critters = pop.critters
-                        self.generation = pop.generation
-        except IOError: pass
-
-        if self.generation == 0:
+                print "Loading old population"
+                data = zlib.decompress(f.read()).split('\n')
+                self.generation = int(data.pop(0))
+                self.critters = [Critter(line) for line in data]
+                print "At generation %i"%self.generation
+        except IOError:
             print "Seeding population of size", size
             self.critters = [Critter() for i in xrange(size)]
             self.select()
@@ -103,25 +100,13 @@ class Population(object):
                 (t.tm_hour, t.tm_min, t.tm_sec, self.generation, \
                 humanize_dt(start, time()))
             print "Saving to disk..."
-            pool = self.pool
-            self.pool = None
-            try:
-                with open('population%s.dat'%self.size,'wb') as f:
-                    pickle.dump(self,f)
-            except KeyboardInterrupt as e:
-                print "Completing save before exitting..."
-                with open('population%s.dat'%self.size,'wb') as f:
-                    pickle.dump(self,f)
-                print "Saved!"
-                raise KeyboardInterrupt(e)
-            self.pool = pool
+            self.save()
         print "Evolution Complete!"
 
     def select(self):
         print "Determing fitnesses..."
-        all_critters=(self.critters for i in xrange(self.size))
-        results = self.pool.map(gauntlet, \
-            izip(count(), self.critters, all_critters))
+        guys = (self.critters for i in xrange(self.size))
+        results = self.pool.map(gauntlet, izip(count(), self.critters, guys))
         for games, x in izip(results, self.critters):
             for winner, o in izip(games, self.critters):
                 if winner == Board.X:
@@ -145,3 +130,17 @@ class Population(object):
 
     def get_move(self,brd): return self.critters[0].get_move(brd)
 
+    def save(self):
+        def _save():
+            with open('population%s.dat'%self.size,'wb') as f:
+                data = str(self.generation)
+                for guy in self.critters:
+                    data += ('\n'+''.join(guy.chromosome))
+                f.write(zlib.compress(data,9))
+            print "Saved!"
+
+        try: _save()
+        except KeyboardInterrupt as e:
+            print "Completing save before exitting..."
+            _save()
+            raise KeyboardInterrupt(e)
