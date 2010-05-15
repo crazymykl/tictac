@@ -15,16 +15,17 @@ class Human(object):
             except ValueError: pass
         return move
 
-def trial(home, away, num=500):
+def trial(home, num=500):
     wins = 0
     draws = 0
     print "Beginning trials..."
 
     for i in range(num):
-        game = play_game(home, Critter(), False)
+        cr = Critter()
+        game = play_game(home, cr, False)
         if game == Board.X: wins += 1
         elif game == Board.draw: draws += 1
-        game = play_game(Critter(), home, False)
+        game = play_game(cr, home, False)
         if game == Board.O: wins += 1
         elif game == Board.draw: draws += 1
 
@@ -32,7 +33,7 @@ def trial(home, away, num=500):
 
 if __name__ == "__main__":
     p= Population(int(sys.argv[1]),int(sys.argv[2]))
-    print "%f%% wins, %f%% draws"%trial(p, Critter())
+    print "%f%% wins, %f%% draws"%trial(p)
     while True:
         print "---starting game---"
         print play_game(p, Human()), "won!\n"

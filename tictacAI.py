@@ -20,11 +20,21 @@ def humanize_dt(start, end):
     if secs : ret += "%.2fs"%secs
     return ret
 
+def restore(size, verbose=True):
+    with open('population%s.dat'%size,'rb') as f:
+        if verbose: print "Loading old population"
+        data = zlib.decompress(f.read()).split('\n')
+        generation = int(data.pop())
+        critters = [Critter(line) for line in data]
+        if verbose: print "At generation %i"%generation
+        return generation, critters
+
 def gauntlet(data):
-    i, x, Os = data
-    ret = [play_game(x, o, False) for o in Os]
-    i += 1
-    print "evaluated %i of %i"%(i, len(Os))
+    i, sz = data
+    _ ,critters = restore(sz, False)
+    x = critters[i]
+    ret = [play_game(x, o, False) for o in critters]
+    print "evaluated %i of %i"%(i+1, sz)
     return ret
 
 class Critter(object):
@@ -72,41 +82,39 @@ class Population(object):
         self.mutation = mutation
         self.win_val  = win_val
         self.loss_val = loss_val
-        self.generation = 0
         self.pool = multiprocessing.Pool()
 
-        try:
-            with open('population%s.dat'%self.size,'rb') as f:
-                print "Loading old population"
-                data = zlib.decompress(f.read()).split('\n')
-                self.generation = int(data.pop(0))
-                self.critters = [Critter(line) for line in data]
-                print "At generation %i"%self.generation
+        try: self.generation, self.critters = restore(size)
         except IOError:
             print "Seeding population of size", size
+            self.generation = 0
             self.critters = [Critter() for i in xrange(size)]
+            self.save()
             self.select()
+
         self.evolve(gens)
+        self.pool.close()
 
     def evolve(self, gens):
         while self.generation < gens:
             print "Propogating gen %s of %s"%(self.generation + 1, gens)
             start = time()
             self.propogate()
+            self.save()
             self.select()
-            self.generation += 1
             t=localtime()
+            self.generation += 1
             print "[%02i:%02i:%02i] gen %s took %s"% \
                 (t.tm_hour, t.tm_min, t.tm_sec, self.generation, \
                 humanize_dt(start, time()))
-            print "Saving to disk..."
-            self.save()
+            self.save(True)
+
         print "Evolution Complete!"
 
     def select(self):
         print "Determing fitnesses..."
-        guys = (self.critters for i in xrange(self.size))
-        results = self.pool.map(gauntlet, izip(count(), self.critters, guys))
+        size = (self.size for i in xrange(self.size))
+        results = self.pool.map(gauntlet, izip(count(), size))
         for games, x in izip(results, self.critters):
             for winner, o in izip(games, self.critters):
                 if winner == Board.X:
@@ -119,7 +127,6 @@ class Population(object):
 
     def propogate(self):
         survivors = self.critters[:int(self.size*self.survival)]
-        for critter in survivors: critter.score = 0
         babies = []
         while len(babies) + len(survivors) < self.size:
             baby = choice(survivors).reproduce(choice(survivors))
@@ -130,17 +137,22 @@ class Population(object):
 
     def get_move(self,brd): return self.critters[0].get_move(brd)
 
-    def save(self):
-        def _save():
+    def save(self, verbose=False):
+        def _save(verbose):
             with open('population%s.dat'%self.size,'wb') as f:
-                data = str(self.generation)
+                data = ''
                 for guy in self.critters:
-                    data += ('\n'+''.join(guy.chromosome))
-                f.write(zlib.compress(data,9))
-            print "Saved!"
+                    data += (''.join(guy.chromosome)+'\n')
+                data += str(self.generation)
+                compr = zlib.compress(data)
+                f.write(compr)
+            ratio = float(len(compr)) / len(data) * 100
+            if verbose: print "Saved! Compression ratio: %4.2f%%"%ratio
 
-        try: _save()
+        try:
+            if verbose: print "Saving to disk..."
+            _save(verbose)
         except KeyboardInterrupt as e:
             print "Completing save before exitting..."
-            _save()
+            _save(True)
             raise KeyboardInterrupt(e)
