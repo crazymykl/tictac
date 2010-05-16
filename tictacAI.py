@@ -21,15 +21,17 @@ def humanize_dt(start, end):
     if secs : ret += "%.2fs"% secs
     return ret
 
-def restore(size, verbose=True):
+def restore(size, perm=True):
     '''Loads some saved data about a Population from a file on disk.
     Returns the generation count and the Critters themselves.'''
-    with open('population%s.dat'%size,'rb') as f:
-        if verbose: print "Loading old population"
+    filename = 'population' if perm else 'temp'
+    filename += '%s.dat'% size
+    with open(filename,'rb') as f:
+        if perm: print "Loading old population"
         data = zlib.decompress(f.read()).split('\n')
         generation = int(data.pop())
         critters = [Critter(line) for line in data]
-        if verbose: print "At generation %i"% generation
+        if perm: print "At generation %i"% generation
         return generation, critters
 
 def gauntlet(data):
@@ -42,7 +44,9 @@ def gauntlet(data):
     print "evaluated %i of %i"% (i+1, sz)
     return ret
 
-class Critter(object):
+class Player(object): pass
+
+class Critter(Player):
     '''A Critter is a tic-tac-toe-playing organism. It is usually found in
     Populations.'''
 
@@ -98,12 +102,12 @@ class Critter(object):
         '''Printing a critter prints its chromosome.'''
         return self.chromosome
 
-class Population(object):
+class Population(Player):
     '''A Population is a collestion of Critters, vying for survival through
     tic-tac-toe.'''
 
-    def __init__(self, size=1000, gens=100, survival=.15, dom_thresh=.3,
-                        mutation=.05, win_value=3, loss_cost=10):
+    def __init__(self, size=1000, gens=100, survival=.15, dom_thresh=.2,
+                        mutation=.05, win_value=4, loss_cost=15):
         '''Creates a new Population, with tunables galore'''
         self.size       = size
         self.survival   = survival
@@ -113,7 +117,7 @@ class Population(object):
         self.dom_thresh = dom_thresh
         self.pool       = multiprocessing.Pool()
 
-        try: self.generation, self.critters = restore(size)
+        try: self.generation, self.critters = restore(size,True)
         except IOError:
             print "Seeding population of size", size
             self.generation = 0
@@ -173,11 +177,13 @@ class Population(object):
         '''Gives the move the most fit Critter thinks is best.'''
         return self.critters[0].get_move(brd)
 
-    def save(self, verbose=True):
+    def save(self, perm=True):
         '''Writes some information about this population to disk.'''
-        def _save(verbose):
+        def _save(perm):
             '''Does the actual saving.'''
-            with open('population%s.dat'% self.size,'wb') as f:
+            filename = 'population' if perm else 'temp'
+            filename += '%s.dat'% self.size
+            with open(filename, 'wb') as f:
                 data = ''
                 for guy in self.critters:
                     data += (guy.chromosome+'\n')
@@ -185,12 +191,12 @@ class Population(object):
                 compr = zlib.compress(data)
                 f.write(compr)
             ratio = float(len(compr)) / len(data) * 100
-            if verbose: print "Saved! Compression ratio: %4.2f%%"% ratio
+            if perm: print "Saved! Compression ratio: %4.2f%%"% ratio
 
         try:
-            if verbose: print "Saving to disk..."
-            _save(verbose)
+            if perm: print "Saving to disk..."
+            _save(perm)
         except KeyboardInterrupt as e:
             print "Completing save before exitting..."
-            _save(True)
+            _save(perm)
             raise KeyboardInterrupt(e)

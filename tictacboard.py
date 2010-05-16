@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 '''The representation of a grid for genetic tic-tac-toe.'''
 
-
 class Board(object):
     '''A tic-tac-toe board.'''
 

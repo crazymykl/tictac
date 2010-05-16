@@ -3,10 +3,10 @@
 '''The driver module for genetic tic-tac-toe.'''
 
 from tictacboard import Board, play_game
-from tictacAI import Critter, Population
+from tictacAI import Critter, Population, Player
 import sys
 
-class Human(object):
+class Human(Player):
     '''A human player of tic-tac-toe.'''
 
     def get_move(self, brd):

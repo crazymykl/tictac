@@ -1,6 +1,6 @@
 #! /bin/env python
 # -*- coding: utf-8 -*-
-'''A helper module for generating the map that the genome of a Critter represents.'''
+'''A helper module for generating the map the genome of a Critter represents.'''
 
 import pickle
 
