@@ -128,7 +128,7 @@ class Population(Player):
         self.pool.close()
 
     def evolve(self, gens):
-        '''Does the real crunchy work of evoling the Population.'''
+        '''Does the real crunchy work of evolving the Population.'''
         while self.generation < gens:
             print "Propogating gen %s of %s"% (self.generation + 1, gens)
             start = time()
