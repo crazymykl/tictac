@@ -1,7 +1,7 @@
 #! /bin/env python
 # -*- coding: utf-8 -*-
 '''AI module for genetic tic-tac-toe.'''
-import multiprocessing, zlib
+import multiprocessing, zlib, os
 from random import random, choice
 from itertools import izip, count
 from tictacboard import Board, play_game
@@ -150,6 +150,7 @@ class Population(Player):
         self.save(False) # the worker threads need to read state from disk
         size = (self.size for i in xrange(self.size))
         results = self.pool.map(gauntlet, izip(count(), size))
+        os.remove("temp%s.dat"% self.size)
         for games, x in izip(results, self.critters):
             for winner, o in izip(games, self.critters):
                 if winner == Board.X:
